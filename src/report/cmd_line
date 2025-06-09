@@ -1,0 +1,1 @@
+genhtml --output-directory report --legend coverage.info
