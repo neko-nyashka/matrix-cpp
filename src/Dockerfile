@@ -1,24 +1,35 @@
-# Dockerfile
 FROM ubuntu:22.04
 
-# Отключаем интерактивный режим apt
+# отключаем все вопросы apt
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Устанавливаем необходимые пакеты: компилятор, make, библиотеку check, lcov и valgrind
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    check \
-    lcov \
-    valgrind \
-    && rm -rf /var/lib/apt/lists/*
+# 1) ставим утилиты и исходники gtest
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      cmake \
+      git \
+      lcov \
+      valgrind \
+      libgtest-dev \
+ && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем рабочую директорию
+# 2) собираем и инсталлируем gtest из /usr/src/gtest
+RUN cd /usr/src/gtest && \
+    cmake -S . -B build && \
+    cmake --build build && \
+    cp build/*.a /usr/lib/
+
+
+# 3) рабочая папка вашего проекта
 WORKDIR /app
+COPY . .
 
-# Копируем файлы проекта
-COPY . /app
+# 4) собираем и запускаем тесты
+#    предположим, что у вас в корне есть Makefile, который знает, как линковаться с gtest
+RUN mkdir build && cd build \
+ && cmake .. \
+ && make
 
-# Собираем проект (цель test в вашем Makefile)
-RUN make test
-
-CMD ["valgrind", "--tool=memcheck", "--leak-check=yes", "--track-origins=yes", "./matrix"]
+# по умолчанию — прогон тестов под valgrind’ом
+CMD ["valgrind", "--tool=memcheck", "--leak-check=yes", "--track-origins=yes", "./build/test_matrix"]

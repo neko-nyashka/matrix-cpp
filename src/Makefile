@@ -1,50 +1,34 @@
-CC = gcc -Wall -Werror -Wextra
-SRC_FILES = s21_matrix.c
-TEST_FILES = tests.c
-
-OBJ_FILES = $(SRC_FILES:.c=.o)
 UNAME := $(shell uname)
-CFLAGS = -std=c11
+CXXFLAGS = -std=c++20 -Wall -Werror -Wextra -I./src
 
+all: s21_matrix_oop.a
+
+alltest: clang-format test leaks clean
+
+s21_matrix_oop.a: s21_matrix_oop.o
+	ar rcs s21_matrix_oop.a s21_matrix_oop.o
+
+s21_matrix_oop.o: s21_matrix_oop.cpp
+	g++ $(CXXFLAGS) -c $< -o $@
+
+test: s21_matrix_oop.a
 ifeq ($(UNAME),Darwin)
-CHECK_INCLUDE_PATH = $(shell brew --prefix check 2>/dev/null)/include
-CHECK_LIB_PATH = $(shell brew --prefix check 2>/dev/null)/lib
-OPEN_CMD = open
-CHECK_LIB = -lcheck
+	g++ $(CXXFLAGS) -I/opt/homebrew/include tests.cpp -o test_matrix -L. -L/opt/homebrew/lib s21_matrix_oop.a -lgtest -lgtest_main -lpthread
+	./test_matrix
 else
-CHECK_INCLUDE_PATH = /usr/include
-CHECK_LIB_PATH = /usr/lib
-OPEN_CMD = xdg-open
-CHECK_LIB = -lcheck -pthread -lrt -lm -lsubunit
+	g++ $(CXXFLAGS) -I/usr/include tests.cpp -o test_matrix -L. -L/usr/lib s21_matrix_oop.a -lgtest -lgtest_main -lpthread
+	./test_matrix
 endif
 
-LIB = s21_matrix.a
-TARGET = matrix
+clang-format:
+	clang-format -n *.cpp *.h
 
-all: $(LIB)
-
-$(LIB): $(OBJ_FILES)
-	ar rcs $(LIB) $(OBJ_FILES)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
+leaks:
 ifeq ($(UNAME),Darwin)
-test: $(LIB) $(TEST_FILES)
-	$(CC) $(CFLAGS) -ftest-coverage -fprofile-arcs -I$(CHECK_INCLUDE_PATH) $(TEST_FILES) -o $(TARGET) -L$(CHECK_LIB_PATH) $(CHECK_LIB) $(LIB)
-	./$(TARGET)
+	leaks -atExit -- ./test_matrix
 else
-test: $(LIB) $(TEST_FILES)
-	$(CC) $(CFLAGS) -ftest-coverage -fprofile-arcs -I$(CHECK_INCLUDE_PATH) $(TEST_FILES) -o $(TARGET) -L$(CHECK_LIB_PATH) $(CHECK_LIB) -L. -l:s21_matrix.a
-	./$(TARGET)
+	valgrind --tool=memcheck --leak-check=yes ./test_matrix
 endif
 
 clean:
-	rm -f $(OBJ_FILES) $(TARGET) *.gcda *.gcno $(LIB) *.info
-	rm -rf report
-
-gcov_report: test
-	lcov --directory . --capture --no-external -o coverage.info > /dev/null 2>&1
-	genhtml --output-directory report --legend coverage.info > /dev/null 2>&1
-	@$(OPEN_CMD) report/index.html
-	@echo "Отчет gcov сгенерирован в папке report/"
+	rm -f s21_matrix_oop.o matrix test_matrix s21_matrix_oop.a
